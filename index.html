@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#b91c1c">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<title>Kozi Kitchen Kasir V3.2</title>
+<style>
+:root{--red:#b91c1c;--dark:#111827;--muted:#6b7280;--bg:#f3f4f6;--card:#fff}
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--dark)}
+header{position:sticky;top:0;z-index:5;background:var(--red);color:#fff;padding:14px 16px;box-shadow:0 2px 8px #0002}
+header h1{font-size:20px;margin:0}header small{opacity:.9}
+nav{display:flex;gap:8px;padding:10px;background:#fff;position:sticky;top:64px;z-index:4;overflow:auto}
+nav button{border:0;background:#eee;padding:9px 12px;border-radius:10px;white-space:nowrap;font-weight:700}
+nav button.active{background:var(--red);color:#fff}
+main{max-width:1100px;margin:auto;padding:12px}.grid{display:grid;grid-template-columns:1.4fr 1fr;gap:12px}
+.card{background:var(--card);border-radius:14px;padding:14px;box-shadow:0 1px 4px #0001;margin-bottom:12px}
+.menu-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:9px}
+.item{border:1px solid #e5e7eb;border-radius:12px;padding:10px;background:#fff;text-align:left}
+.item b{display:block}.item span{color:var(--red);font-weight:800}.item button{width:100%;margin-top:8px;border:0;border-radius:9px;padding:8px;background:#fee2e2;color:#991b1b;font-weight:700}
+.row{display:flex;justify-content:space-between;gap:8px;align-items:center}.cartrow{padding:9px 0;border-bottom:1px solid #eee}.qty button{border:0;background:#eee;border-radius:7px;padding:5px 9px;margin-left:4px}
+input,select{width:100%;padding:10px;border:1px solid #d1d5db;border-radius:9px}
+.btn{border:0;border-radius:10px;padding:10px 13px;font-weight:800;cursor:pointer}.primary{background:var(--red);color:#fff}.secondary{background:#e5e7eb}.danger{background:#fee2e2;color:#991b1b}
+.total{font-size:22px;font-weight:900}.muted{color:var(--muted);font-size:13px}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:9px}.stat{background:#fff;border-radius:12px;padding:12px}.stat b{font-size:18px;display:block;margin-top:4px}
+table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:8px;border-bottom:1px solid #eee;text-align:left}
+.hidden{display:none!important}.actions{display:flex;gap:7px;flex-wrap:wrap}.notice{background:#fff7ed;border:1px solid #fed7aa;padding:10px;border-radius:10px}
+@media(max-width:760px){.grid{grid-template-columns:1fr}.stats{grid-template-columns:repeat(2,1fr)}nav{top:61px}header{padding:12px}.menu-grid{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<header><h1>🍟 Kozi Kitchen — Kasir V3.2</h1><small>Offline • PWA • Data tersimpan di perangkat</small></header>
+<nav id="nav"></nav>
+<main>
+<section id="kasir" class="page"></section>
+<section id="dashboard" class="page hidden"></section>
+<section id="laporan" class="page hidden"></section>
+<section id="stok" class="page hidden"></section>
+<section id="menu" class="page hidden"></section>
+<section id="backup" class="page hidden"></section>
+</main>
+<script>
+const KEY='kozi_kitchen_v32';
+const defaultMenu=[
+['Burger',12000,'Burger'],['Hotdog',12000,'Burger'],['Chicken Burger',11000,'Burger'],
+['Otak2',2000,'Bakaran'],['Sosis',3000,'Bakaran'],['Fish roll',3000,'Bakaran'],['Bakso sapi',3000,'Bakaran'],['Scalp',3000,'Bakaran'],['Cikhuwa',3000,'Bakaran'],['Dumpling keju',7000,'Bakaran'],['Sosis Jumbo',7000,'Bakaran'],['Otak2 Singapore/Jumbo',10000,'Bakaran'],['Dimsum',12000,'Bakaran'],
+['Corndog',10000,'Bakaran'],['HOTANG',7000,'Bakaran'],
+['Es Potong',10000,'Ice Cream'],['Ice Cream Cone',3000,'Ice Cream'],['Ice Cream Cup',5000,'Ice Cream'],['Es Cemal-Cemil',7000,'Ice Cream'],['Es Cemil Komplit',13000,'Ice Cream'],
+['Fanta & Cola Float',8000,'Fresh & Fizz'],['Emerald Fizz & Ruby Sparkle',8000,'Fresh & Fizz'],['Orange Squash',8000,'Fresh & Fizz'],
+['Roti Bakar Coklat Keju',10000,'The Eats'],['Nasi Mentai',15000,'The Eats']
+];
+let db=JSON.parse(localStorage.getItem(KEY)||'null');
+if(!db){db={menu:defaultMenu.map((x,i)=>({id:i+1,name:x[0],price:x[1],cat:x[2],stock:20})),tx:[],settings:{}};save()}
+let cart=[];
+function save(){localStorage.setItem(KEY,JSON.stringify(db))}
+function money(n){return new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR',maximumFractionDigits:0}).format(n)}
+function today(){return new Date().toISOString().slice(0,10)}
+function nav(){document.getElementById('nav').innerHTML=[['kasir','Kasir'],['dashboard','Dashboard'],['laporan','Laporan'],['stok','Stok'],['menu','Menu'],['backup','Backup']].map(x=>`<button onclick="show('${x[0]}')">${x[1]}</button>`).join('')}
+function show(id){document.querySelectorAll('.page').forEach(x=>x.classList.add('hidden'));document.getElementById(id).classList.remove('hidden');render(id)}
+function render(id){
+ if(id==='kasir')renderKasir(); if(id==='dashboard')renderDash(); if(id==='laporan')renderReport(); if(id==='stok')renderStock(); if(id==='menu')renderMenu(); if(id==='backup')renderBackup();
+}
+function cats(){return [...new Set(db.menu.map(x=>x.cat))]}
+function renderKasir(){
+ let catsHtml=cats().map(c=>`<option>${c}</option>`).join('');
+ document.getElementById('kasir').innerHTML=`<div class="grid"><div class="card"><div class="row"><h2>Kasir</h2><select id="cat" onchange="renderProducts()">${catsHtml}</select></div><div id="products" class="menu-grid"></div></div><div class="card"><h2>Keranjang</h2><div id="cart"></div><div class="row"><span>Total</span><span class="total" id="grand"></span></div><hr><label>Metode pembayaran</label><select id="pay"><option>Cash</option><option>QRIS</option><option>Transfer</option></select><div id="cashbox"><label style="display:block;margin-top:8px">Uang diterima</label><input id="cash" type="number" min="0" oninput="calcChange()"><div class="muted">Kembalian: <b id="change">Rp0</b></div></div><button class="btn primary" style="width:100%;margin-top:10px" onclick="checkout()">Simpan Transaksi</button></div></div>`;
+ document.getElementById('pay').onchange=()=>{document.getElementById('cashbox').style.display=document.getElementById('pay').value==='Cash'?'block':'none'};
+ renderProducts();renderCart()
+}
+function renderProducts(){
+ let c=document.getElementById('cat').value;
+ document.getElementById('products').innerHTML=db.menu.filter(x=>x.cat===c).map(x=>`<div class="item"><b>${x.name}</b><span>${money(x.price)}</span><div class="muted">Stok: ${x.stock}</div><button onclick="add(${x.id})" ${x.stock<=0?'disabled':''}>Tambah</button></div>`).join('')
+}
+function add(id){let m=db.menu.find(x=>x.id===id);if(!m||m.stock<=0)return;let q=cart.find(x=>x.id===id);if(q){if(q.qty<m.stock)q.qty++}else cart.push({id,name:m.name,price:m.price,qty:1});renderCart()}
+function renderCart(){
+ let el=document.getElementById('cart');if(!cart.length){el.innerHTML='<div class="muted">Belum ada item.</div>';document.getElementById('grand').textContent=money(0);return}
+ el.innerHTML=cart.map(x=>`<div class="cartrow"><div class="row"><div><b>${x.name}</b><div class="muted">${money(x.price)} × ${x.qty}</div></div><div class="qty"><button onclick="changeQty(${x.id},-1)">−</button><b>${x.qty}</b><button onclick="changeQty(${x.id},1)">+</button><button onclick="removeCart(${x.id})">✕</button></div></div></div>`).join('');
+ document.getElementById('grand').textContent=money(cart.reduce((s,x)=>s+x.price*x.qty,0));calcChange()
+}
+function changeQty(id,d){let q=cart.find(x=>x.id===id),m=db.menu.find(x=>x.id===id);if(!q)return;q.qty+=d;if(q.qty<=0)cart=cart.filter(x=>x.id!==id);if(q&&q.qty>m.stock)q.qty=m.stock;renderCart()}
+function removeCart(id){cart=cart.filter(x=>x.id!==id);renderCart()}
+function calcChange(){let total=cart.reduce((s,x)=>s+x.price*x.qty,0),cash=+(document.getElementById('cash')?.value||0);let c=document.getElementById('change');if(c)c.textContent=money(Math.max(0,cash-total))}
+function checkout(){
+ if(!cart.length)return alert('Keranjang masih kosong.');
+ let total=cart.reduce((s,x)=>s+x.price*x.qty,0),pay=document.getElementById('pay').value,cash=+(document.getElementById('cash')?.value||0);
+ if(pay==='Cash'&&cash<total)return alert('Uang diterima kurang.');
+ cart.forEach(q=>{db.menu.find(m=>m.id===q.id).stock-=q.qty});
+ db.tx.push({id:Date.now(),date:new Date().toISOString(),items:cart.map(x=>({...x})),total,payment:pay,cash:pay==='Cash'?cash:total,change:pay==='Cash'?cash-total:0});
+ save();alert('Transaksi tersimpan.');cart=[];renderKasir()
+}
+function renderDash(){
+ let t=today(),tx=db.tx.filter(x=>x.date.slice(0,10)===t),sales=tx.reduce((s,x)=>s+x.total,0),items=tx.reduce((s,x)=>s+x.items.reduce((a,i)=>a+i.qty,0),0),count={};
+ tx.forEach(x=>x.items.forEach(i=>count[i.name]=(count[i.name]||0)+i.qty));
+ let best=Object.entries(count).sort((a,b)=>b[1]-a[1])[0];
+ document.getElementById('dashboard').innerHTML=`<div class="stats"><div class="stat">Penjualan hari ini<b>${money(sales)}</b></div><div class="stat">Transaksi<b>${tx.length}</b></div><div class="stat">Item terjual<b>${items}</b></div><div class="stat">Best seller<b>${best?best[0]:'-'}</b></div></div><div class="card"><h2>Pembayaran hari ini</h2><p>Cash: <b>${money(tx.filter(x=>x.payment==='Cash').reduce((s,x)=>s+x.total,0))}</b></p><p>QRIS: <b>${money(tx.filter(x=>x.payment==='QRIS').reduce((s,x)=>s+x.total,0))}</b></p><p>Transfer: <b>${money(tx.filter(x=>x.payment==='Transfer').reduce((s,x)=>s+x.total,0))}</b></p></div><div class="card"><h2>Stok menipis</h2>${db.menu.filter(x=>x.stock<=5).map(x=>`<p>${x.name}: <b>${x.stock}</b></p>`).join('')||'<span class="muted">Tidak ada.</span>'}</div>`;
+}
+function renderReport(){
+ document.getElementById('laporan').innerHTML=`<div class="card"><h2>Laporan Transaksi</h2><div class="actions"><input id="from" type="date" value="${today()}"><input id="to" type="date" value="${today()}"><button class="btn secondary" onclick="filterReport()">Tampilkan</button><button class="btn primary" onclick="csv()">Export CSV</button></div><div id="reportTable"></div></div>`;filterReport()
+}
+function filterReport(){let a=document.getElementById('from').value,b=document.getElementById('to').value,tx=db.tx.filter(x=>x.date.slice(0,10)>=a&&x.date.slice(0,10)<=b);document.getElementById('reportTable').innerHTML=`<p><b>${tx.length}</b> transaksi • <b>${money(tx.reduce((s,x)=>s+x.total,0))}</b></p><table><tr><th>Tanggal</th><th>Pembayaran</th><th>Total</th><th>Item</th></tr>${tx.slice().reverse().map(x=>`<tr><td>${new Date(x.date).toLocaleString('id-ID')}</td><td>${x.payment}</td><td>${money(x.total)}</td><td>${x.items.map(i=>i.name+' ×'+i.qty).join(', ')}</td></tr>`).join('')}</table>`}
+function renderStock(){document.getElementById('stok').innerHTML=`<div class="card"><h2>Kelola Stok</h2><table><tr><th>Menu</th><th>Stok</th><th>Ubah</th></tr>${db.menu.map(x=>`<tr><td>${x.name}</td><td><b>${x.stock}</b></td><td><button class="btn secondary" onclick="adj(${x.id},10)">+10</button> <button class="btn danger" onclick="setStock(${x.id})">Set</button></td></tr>`).join('')}</table></div>`}
+function adj(id,n){db.menu.find(x=>x.id===id).stock+=n;save();renderStock()}
+function setStock(id){let m=db.menu.find(x=>x.id===id),n=prompt('Stok baru:',m.stock);if(n!==null&&!isNaN(n)){m.stock=Math.max(0,+n);save();renderStock()}}
+function renderMenu(){document.getElementById('menu').innerHTML=`<div class="card"><h2>Menu</h2><div class="actions"><input id="mn" placeholder="Nama menu"><input id="pr" type="number" placeholder="Harga"><input id="ct" placeholder="Kategori"><button class="btn primary" onclick="addMenu()">Tambah Menu</button></div></div><div class="card"><table><tr><th>Menu</th><th>Harga</th><th>Kategori</th><th>Stok</th><th></th></tr>${db.menu.map(x=>`<tr><td>${x.name}</td><td>${money(x.price)}</td><td>${x.cat}</td><td>${x.stock}</td><td><button class="btn danger" onclick="delMenu(${x.id})">Hapus</button></td></tr>`).join('')}</table></div>`}
+function addMenu(){let n=document.getElementById('mn').value,p=+document.getElementById('pr').value,c=document.getElementById('ct').value;if(!n||!p||!c)return alert('Lengkapi nama, harga, kategori.');db.menu.push({id:Date.now(),name:n,price:p,cat:c,stock:0});save();renderMenu()}
+function delMenu(id){if(confirm('Hapus menu ini?')){db.menu=db.menu.filter(x=>x.id!==id);save();renderMenu()}}
+function renderBackup(){document.getElementById('backup').innerHTML=`<div class="card"><h2>Backup & Restore</h2><p>Backup menyimpan menu, stok, transaksi, dan pengaturan dari perangkat ini.</p><div class="actions"><button class="btn primary" onclick="backup()">Download Backup JSON</button><label class="btn secondary">Restore JSON <input id="restore" type="file" accept=".json" hidden onchange="restore(this.files[0])"></label><button class="btn danger" onclick="resetAll()">Reset Semua Data</button></div><div class="notice" style="margin-top:12px"><b>Penting:</b> PWA ini tidak otomatis menyinkronkan data antara HP dan PC. Gunakan Backup JSON saat pindah perangkat.</div><hr><p class="muted">Status instalasi: <span id="installStatus"></span></p><button class="btn secondary" id="installBtn" onclick="installPwa()" style="display:none">📲 Install Kozi Kitchen</button></div>`;document.getElementById('installStatus').textContent=location.protocol==='https:'?'Siap dipasang jika browser mendukung.':'File lokal belum bisa dipasang sebagai PWA. Upload ke HTTPS gratis terlebih dahulu.'}
+function backup(){let blob=new Blob([JSON.stringify(db,null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='KoziKitchen_Backup_'+today()+'.json';a.click();URL.revokeObjectURL(a.href)}
+function restore(f){if(!f)return;let r=new FileReader();r.onload=()=>{try{let x=JSON.parse(r.result);if(!x.menu||!x.tx)throw 0;db=x;save();alert('Restore berhasil.');show('dashboard')}catch(e){alert('File backup tidak valid.')}};r.readAsText(f)}
+function resetAll(){if(confirm('Hapus semua transaksi, stok, dan menu?')){localStorage.removeItem(KEY);location.reload()}}
+function csv(){let a=document.getElementById('from').value,b=document.getElementById('to').value,tx=db.tx.filter(x=>x.date.slice(0,10)>=a&&x.date.slice(0,10)<=b),rows=[['Tanggal','Pembayaran','Total','Item']];tx.forEach(x=>rows.push([x.date,x.payment,x.total,x.items.map(i=>i.name+' x'+i.qty).join(' | ')]));let s=rows.map(r=>r.map(v=>`"${String(v).replaceAll('"','""')}"`).join(',')).join('\\n'),blob=new Blob([s],{type:'text/csv;charset=utf-8'}),aEl=document.createElement('a');aEl.href=URL.createObjectURL(blob);aEl.download='KoziKitchen_Laporan_'+a+'_'+b+'.csv';aEl.click()}
+let deferredPrompt=null;window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;let b=document.getElementById('installBtn');if(b)b.style.display='inline-block'});
+async function installPwa(){if(!deferredPrompt)return alert('Jika tombol instal belum muncul, buka aplikasi melalui HTTPS dan gunakan Chrome.');deferredPrompt.prompt();await deferredPrompt.userChoice;deferredPrompt=null}
+if('serviceWorker' in navigator && location.protocol!=='file:')window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
+nav();show('kasir');
+</script>
+</body>
+</html>

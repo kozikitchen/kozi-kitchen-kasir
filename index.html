@@ -127,8 +127,7 @@ if('serviceWorker' in navigator && location.protocol!=='file:')window.addEventLi
 nav();show('kasir');
 </script>
 <script>
-
-/* V3.2.1 custom in-app logo settings. App launcher icon is unchanged. */
+/* V3.2.1.1 custom logo settings in dedicated tab; app launcher icon unchanged */
 (function(){
  const K='kozi_kitchen_cashier_logo_v321';
  function apply(){
@@ -141,21 +140,37 @@ nav();show('kasir');
  }
  function init(){
    if(document.getElementById('koziLogoSettings'))return;
-   const panel=document.createElement('section');
-   panel.id='koziLogoSettings';
-   panel.style.cssText='background:#fff;border:1px solid #ddd;border-radius:12px;padding:16px;margin:16px 0;color:#222';
-   panel.innerHTML='<h3>Pengaturan Logo Kasir</h3><p style="font-size:13px;color:#666">Ganti logo di dalam aplikasi. Ikon aplikasi Android tidak berubah.</p><img id="koziLogoPreview" alt="Preview logo" style="display:block;width:120px;height:120px;object-fit:contain;border:1px dashed #bbb;border-radius:8px;padding:6px;margin:8px 0;background:#fff"><input id="koziLogoFile" type="file" accept="image/png,image/jpeg,image/webp" style="display:block;max-width:100%;margin:8px 0"><div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" id="koziApplyLogo" style="border:0;border-radius:8px;padding:10px 12px;background:#b71c1c;color:white">Gunakan Logo</button><button type="button" id="koziResetLogo" style="border:1px solid #ccc;border-radius:8px;padding:10px 12px;background:#f5f5f5">Kembalikan Logo Default</button></div><p style="font-size:12px;color:#777">Gunakan gambar maksimal 1.5 MB.</p>';
-   const target=document.querySelector('#settings,[id*="setting"],[data-page*="setting"],#backup,[id*="backup"],[data-page*="backup"],main')||document.body;
-   target.appendChild(panel);
+   const nav=document.querySelector('nav');
+   const main=document.querySelector('main');
+   if(!nav||!main)return;
+   let btn=document.querySelector('nav button[data-view="pengaturan-logo"]');
+   if(!btn){
+     btn=document.createElement('button');
+     btn.type='button'; btn.dataset.view='pengaturan-logo'; btn.textContent='Pengaturan Logo';
+     nav.appendChild(btn);
+   }
+   let view=document.getElementById('pengaturan-logo');
+   if(!view){
+     view=document.createElement('section');
+     view.id='pengaturan-logo'; view.className='view';
+     view.innerHTML='<div id="koziLogoSettings" class="card" style="max-width:760px"><h2>Pengaturan Logo Kasir</h2><p class="muted">Ganti logo yang tampil di dalam aplikasi. Ikon aplikasi Android tidak berubah.</p><img id="koziLogoPreview" alt="Preview logo" style="display:block;width:140px;height:140px;object-fit:contain;border:1px dashed #bbb;border-radius:10px;padding:8px;margin:10px 0;background:#fff"><label for="koziLogoFile">Pilih gambar logo</label><input id="koziLogoFile" type="file" accept="image/png,image/jpeg,image/webp"><div class="actions" style="margin-top:10px"><button type="button" id="koziApplyLogo" class="btn primary">Gunakan Logo</button><button type="button" id="koziResetLogo" class="btn">Kembalikan Logo Default</button></div><p class="muted">Gunakan gambar maksimal 1.5 MB. Logo tersimpan di perangkat ini.</p></div>';
+     main.appendChild(view);
+   }
+   // Wire the same view switching behavior as the app's existing tabs.
+   btn.addEventListener('click',function(){
+     document.querySelectorAll('.view').forEach(v=>v.classList.toggle('active',v.id==='pengaturan-logo'));
+     document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b===btn));
+     apply();
+   });
    document.getElementById('koziLogoFile').addEventListener('change',e=>{
-     const f=e.target.files&&e.target.files[0];if(!f)return;
+     const f=e.target.files&&e.target.files[0]; if(!f)return;
      if(f.size>1500000){alert('Ukuran logo maksimal 1.5 MB.');e.target.value='';return;}
-     const r=new FileReader();r.onload=()=>document.getElementById('koziLogoPreview').src=r.result;r.readAsDataURL(f);
+     const r=new FileReader(); r.onload=()=>document.getElementById('koziLogoPreview').src=r.result; r.readAsDataURL(f);
    });
    document.getElementById('koziApplyLogo').onclick=()=>{
-     const f=document.getElementById('koziLogoFile').files[0];if(!f){alert('Pilih gambar logo terlebih dahulu.');return;}
+     const f=document.getElementById('koziLogoFile').files[0]; if(!f){alert('Pilih gambar logo terlebih dahulu.');return;}
      if(f.size>1500000){alert('Ukuran logo maksimal 1.5 MB.');return;}
-     const r=new FileReader();r.onload=()=>{try{localStorage.setItem(K,r.result);apply();alert('Logo kasir berhasil diganti.')}catch(e){alert('Logo terlalu besar untuk penyimpanan perangkat. Coba gambar lebih kecil.')}};r.readAsDataURL(f);
+     const r=new FileReader(); r.onload=()=>{try{localStorage.setItem(K,r.result);apply();alert('Logo kasir berhasil diganti.')}catch(e){alert('Logo terlalu besar untuk penyimpanan perangkat. Coba gambar lebih kecil.')}}; r.readAsDataURL(f);
    };
    document.getElementById('koziResetLogo').onclick=()=>{localStorage.removeItem(K);document.getElementById('koziLogoFile').value='';apply();alert('Logo kembali ke bawaan aplikasi.')};
    apply();
@@ -163,7 +178,6 @@ nav();show('kasir');
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
  window.addEventListener('pageshow',apply);
 })();
-
 </script>
 </body>
 </html>

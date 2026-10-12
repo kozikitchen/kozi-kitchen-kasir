@@ -28,14 +28,14 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:8px;borde
 .hidden{display:none!important}.actions{display:flex;gap:7px;flex-wrap:wrap}.notice{background:#fff7ed;border:1px solid #fed7aa;padding:10px;border-radius:10px}
 @media(max-width:760px){.grid{grid-template-columns:1fr}.stats{grid-template-columns:repeat(2,1fr)}nav{top:61px}header{padding:12px}.menu-grid{grid-template-columns:repeat(2,1fr)}}
 
-/* V3.2.1 responsive rotation support */
+/* V3.2.2 responsive layout for portrait and landscape */
 html,body{width:100%;min-height:100%;-webkit-text-size-adjust:100%}
 @media (orientation:landscape) and (min-width:700px){
-  .app,.container,main{max-width:100%}
-  .grid,.layout,.pos-layout,.cashier-layout,.main-content{grid-template-columns:minmax(0,1.4fr) minmax(300px,.9fr)}
+  main{max-width:100%}
+  .grid{grid-template-columns:minmax(0,1.4fr) minmax(300px,.9fr)}
 }
 @media (orientation:portrait){
-  .grid,.layout,.pos-layout,.cashier-layout,.main-content{grid-template-columns:minmax(0,1fr)}
+  .grid{grid-template-columns:minmax(0,1fr)}
 }
 
 </style>
@@ -64,6 +64,7 @@ const defaultMenu=[
 let db=JSON.parse(localStorage.getItem(KEY)||'null');
 if(!db){db={menu:defaultMenu.map((x,i)=>({id:i+1,name:x[0],price:x[1],cat:x[2],stock:20})),tx:[],settings:{}};save()}
 let cart=[];
+let preferredCat=null;
 function save(){localStorage.setItem(KEY,JSON.stringify(db))}
 function money(n){return new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR',maximumFractionDigits:0}).format(n)}
 function today(){return new Date().toISOString().slice(0,10)}
@@ -74,13 +75,13 @@ function render(id){
 }
 function cats(){return [...new Set(db.menu.map(x=>x.cat))]}
 function renderKasir(){
- let catsHtml=cats().map(c=>`<option>${c}</option>`).join('');
+ let availableCats=cats(); if(!availableCats.includes(preferredCat)) preferredCat=availableCats[0]||null; let catsHtml=availableCats.map(c=>`<option ${c===preferredCat?'selected':''}>${c}</option>`).join('');
  document.getElementById('kasir').innerHTML=`<div class="grid"><div class="card"><div class="row"><h2>Kasir</h2><select id="cat" onchange="renderProducts()">${catsHtml}</select></div><div id="products" class="menu-grid"></div></div><div class="card"><h2>Keranjang</h2><div id="cart"></div><div class="row"><span>Total</span><span class="total" id="grand"></span></div><hr><label>Metode pembayaran</label><select id="pay"><option>Cash</option><option>QRIS</option><option>Transfer</option></select><div id="cashbox"><label style="display:block;margin-top:8px">Uang diterima</label><input id="cash" type="number" min="0" oninput="calcChange()"><div class="muted">Kembalian: <b id="change">Rp0</b></div></div><button class="btn primary" style="width:100%;margin-top:10px" onclick="checkout()">Simpan Transaksi</button></div></div>`;
  document.getElementById('pay').onchange=()=>{document.getElementById('cashbox').style.display=document.getElementById('pay').value==='Cash'?'block':'none'};
  renderProducts();renderCart()
 }
 function renderProducts(){
- let c=document.getElementById('cat').value;
+ let c=document.getElementById('cat').value; preferredCat=c;
  document.getElementById('products').innerHTML=db.menu.filter(x=>x.cat===c).map(x=>`<div class="item"><b>${x.name}</b><span>${money(x.price)}</span><div class="muted">Stok: ${x.stock}</div><button onclick="add(${x.id})" ${x.stock<=0?'disabled':''}>Tambah</button></div>`).join('')
 }
 function add(id){let m=db.menu.find(x=>x.id===id);if(!m||m.stock<=0)return;let q=cart.find(x=>x.id===id);if(q){if(q.qty<m.stock)q.qty++}else cart.push({id,name:m.name,price:m.price,qty:1});renderCart()}
@@ -113,8 +114,8 @@ function filterReport(){let a=document.getElementById('from').value,b=document.g
 function renderStock(){document.getElementById('stok').innerHTML=`<div class="card"><h2>Kelola Stok</h2><table><tr><th>Menu</th><th>Stok</th><th>Ubah</th></tr>${db.menu.map(x=>`<tr><td>${x.name}</td><td><b>${x.stock}</b></td><td><button class="btn secondary" onclick="adj(${x.id},10)">+10</button> <button class="btn danger" onclick="setStock(${x.id})">Set</button></td></tr>`).join('')}</table></div>`}
 function adj(id,n){db.menu.find(x=>x.id===id).stock+=n;save();renderStock()}
 function setStock(id){let m=db.menu.find(x=>x.id===id),n=prompt('Stok baru:',m.stock);if(n!==null&&!isNaN(n)){m.stock=Math.max(0,+n);save();renderStock()}}
-function renderMenu(){document.getElementById('menu').innerHTML=`<div class="card"><h2>Menu</h2><div class="actions"><input id="mn" placeholder="Nama menu"><input id="pr" type="number" placeholder="Harga"><input id="ct" placeholder="Kategori"><button class="btn primary" onclick="addMenu()">Tambah Menu</button></div></div><div class="card"><table><tr><th>Menu</th><th>Harga</th><th>Kategori</th><th>Stok</th><th></th></tr>${db.menu.map(x=>`<tr><td>${x.name}</td><td>${money(x.price)}</td><td>${x.cat}</td><td>${x.stock}</td><td><button class="btn danger" onclick="delMenu(${x.id})">Hapus</button></td></tr>`).join('')}</table></div>`}
-function addMenu(){let n=document.getElementById('mn').value,p=+document.getElementById('pr').value,c=document.getElementById('ct').value;if(!n||!p||!c)return alert('Lengkapi nama, harga, kategori.');db.menu.push({id:Date.now(),name:n,price:p,cat:c,stock:0});save();renderMenu()}
+function renderMenu(){document.getElementById('menu').innerHTML=`<div class="card"><h2>Menu</h2><div class="actions"><input id="mn" placeholder="Nama menu"><input id="pr" type="number" min="1" placeholder="Harga"><input id="ct" placeholder="Kategori"><input id="st" type="number" min="0" step="1" value="20" placeholder="Stok awal" title="Stok awal (default 20)"><button class="btn primary" onclick="addMenu()">Tambah Menu</button></div><p class="muted">Stok awal otomatis 20 agar menu bisa langsung dijual. Ubah sesuai stok sebenarnya.</p></div><div class="card"><table><tr><th>Menu</th><th>Harga</th><th>Kategori</th><th>Stok</th><th></th></tr>${db.menu.map(x=>`<tr><td>${x.name}</td><td>${money(x.price)}</td><td>${x.cat}</td><td>${x.stock}</td><td><button class="btn danger" onclick="delMenu(${x.id})">Hapus</button></td></tr>`).join('')}</table></div>`}
+function addMenu(){let n=document.getElementById('mn').value.trim(),p=Number(document.getElementById('pr').value),c=document.getElementById('ct').value.trim(),rawStock=document.getElementById('st').value,stock=rawStock===''?20:Number(rawStock);if(!n||!Number.isFinite(p)||p<=0||!c)return alert('Lengkapi nama, harga, dan kategori dengan benar.');if(!Number.isInteger(stock)||stock<0)return alert('Stok awal harus berupa angka bulat 0 atau lebih.');db.menu.push({id:Date.now(),name:n,price:p,cat:c,stock});preferredCat=c;save();renderMenu();alert('Menu berhasil ditambahkan. Stok awal: '+stock+'. Saat membuka Kasir, kategori menu baru akan dipilih otomatis.')}
 function delMenu(id){if(confirm('Hapus menu ini?')){db.menu=db.menu.filter(x=>x.id!==id);save();renderMenu()}}
 function renderBackup(){document.getElementById('backup').innerHTML=`<div class="card"><h2>Backup & Restore</h2><p>Backup menyimpan menu, stok, transaksi, dan pengaturan dari perangkat ini.</p><div class="actions"><button class="btn primary" onclick="backup()">Download Backup JSON</button><label class="btn secondary">Restore JSON <input id="restore" type="file" accept=".json" hidden onchange="restore(this.files[0])"></label><button class="btn danger" onclick="resetAll()">Reset Semua Data</button></div><div class="notice" style="margin-top:12px"><b>Penting:</b> PWA ini tidak otomatis menyinkronkan data antara HP dan PC. Gunakan Backup JSON saat pindah perangkat.</div><hr><p class="muted">Status instalasi: <span id="installStatus"></span></p><button class="btn secondary" id="installBtn" onclick="installPwa()" style="display:none">📲 Install Kozi Kitchen</button></div>`;document.getElementById('installStatus').textContent=location.protocol==='https:'?'Siap dipasang jika browser mendukung.':'File lokal belum bisa dipasang sebagai PWA. Upload ke HTTPS gratis terlebih dahulu.'}
 function backup(){let blob=new Blob([JSON.stringify(db,null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='KoziKitchen_Backup_'+today()+'.json';a.click();URL.revokeObjectURL(a.href)}
@@ -125,59 +126,6 @@ let deferredPrompt=null;window.addEventListener('beforeinstallprompt',e=>{e.prev
 async function installPwa(){if(!deferredPrompt)return alert('Jika tombol instal belum muncul, buka aplikasi melalui HTTPS dan gunakan Chrome.');deferredPrompt.prompt();await deferredPrompt.userChoice;deferredPrompt=null}
 if('serviceWorker' in navigator && location.protocol!=='file:')window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
 nav();show('kasir');
-</script>
-<script>
-/* V3.2.1.1 custom logo settings in dedicated tab; app launcher icon unchanged */
-(function(){
- const K='kozi_kitchen_cashier_logo_v321';
- function apply(){
-   const s=localStorage.getItem(K);
-   document.querySelectorAll('header img,.brand img,.logo img,img.logo,#logo,#appLogo,.app-logo').forEach(img=>{
-     if(!img.closest('#koziLogoSettings') && s){img.src=s;img.style.objectFit='contain';}
-   });
-   const p=document.getElementById('koziLogoPreview');
-   if(p){if(s)p.src=s;else{p.removeAttribute('src');p.alt='Belum ada logo kustom';}}
- }
- function init(){
-   if(document.getElementById('koziLogoSettings'))return;
-   const nav=document.querySelector('nav');
-   const main=document.querySelector('main');
-   if(!nav||!main)return;
-   let btn=document.querySelector('nav button[data-view="pengaturan-logo"]');
-   if(!btn){
-     btn=document.createElement('button');
-     btn.type='button'; btn.dataset.view='pengaturan-logo'; btn.textContent='Pengaturan Logo';
-     nav.appendChild(btn);
-   }
-   let view=document.getElementById('pengaturan-logo');
-   if(!view){
-     view=document.createElement('section');
-     view.id='pengaturan-logo'; view.className='view';
-     view.innerHTML='<div id="koziLogoSettings" class="card" style="max-width:760px"><h2>Pengaturan Logo Kasir</h2><p class="muted">Ganti logo yang tampil di dalam aplikasi. Ikon aplikasi Android tidak berubah.</p><img id="koziLogoPreview" alt="Preview logo" style="display:block;width:140px;height:140px;object-fit:contain;border:1px dashed #bbb;border-radius:10px;padding:8px;margin:10px 0;background:#fff"><label for="koziLogoFile">Pilih gambar logo</label><input id="koziLogoFile" type="file" accept="image/png,image/jpeg,image/webp"><div class="actions" style="margin-top:10px"><button type="button" id="koziApplyLogo" class="btn primary">Gunakan Logo</button><button type="button" id="koziResetLogo" class="btn">Kembalikan Logo Default</button></div><p class="muted">Gunakan gambar maksimal 1.5 MB. Logo tersimpan di perangkat ini.</p></div>';
-     main.appendChild(view);
-   }
-   // Wire the same view switching behavior as the app's existing tabs.
-   btn.addEventListener('click',function(){
-     document.querySelectorAll('.view').forEach(v=>v.classList.toggle('active',v.id==='pengaturan-logo'));
-     document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b===btn));
-     apply();
-   });
-   document.getElementById('koziLogoFile').addEventListener('change',e=>{
-     const f=e.target.files&&e.target.files[0]; if(!f)return;
-     if(f.size>1500000){alert('Ukuran logo maksimal 1.5 MB.');e.target.value='';return;}
-     const r=new FileReader(); r.onload=()=>document.getElementById('koziLogoPreview').src=r.result; r.readAsDataURL(f);
-   });
-   document.getElementById('koziApplyLogo').onclick=()=>{
-     const f=document.getElementById('koziLogoFile').files[0]; if(!f){alert('Pilih gambar logo terlebih dahulu.');return;}
-     if(f.size>1500000){alert('Ukuran logo maksimal 1.5 MB.');return;}
-     const r=new FileReader(); r.onload=()=>{try{localStorage.setItem(K,r.result);apply();alert('Logo kasir berhasil diganti.')}catch(e){alert('Logo terlalu besar untuk penyimpanan perangkat. Coba gambar lebih kecil.')}}; r.readAsDataURL(f);
-   };
-   document.getElementById('koziResetLogo').onclick=()=>{localStorage.removeItem(K);document.getElementById('koziLogoFile').value='';apply();alert('Logo kembali ke bawaan aplikasi.')};
-   apply();
- }
- if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
- window.addEventListener('pageshow',apply);
-})();
 </script>
 </body>
 </html>

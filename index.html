@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#b91c1c">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
-<title>Kozi Kitchen Kasir V3.4.2</title>
+<title>Kozi Kitchen Kasir V3.4.3</title>
 <style>
 :root{--red:#b91c1c;--dark:#111827;--muted:#6b7280;--bg:#f3f4f6;--card:#fff}
 *{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--dark)}
@@ -85,7 +85,7 @@ html,body{width:100%;min-height:100%;-webkit-text-size-adjust:100%}
 </style>
 </head>
 <body>
-<header><h1>🍟 Kozi Kitchen — Kasir V3.4.2</h1><small>Offline • PWA • Data tersimpan di perangkat</small></header>
+<header><h1>🍟 Kozi Kitchen — Kasir V3.4.3</h1><small>Offline • PWA • Data tersimpan di perangkat</small></header>
 <nav id="nav"></nav>
 <main><div id="receiptLayer" class="hidden"></div>
 <section id="kasir" class="page"></section>
@@ -203,9 +203,62 @@ function setStock(id){let m=db.menu.find(x=>x.id===id),n=prompt('Stok baru:',m.s
 function renderMenu(){document.getElementById('menu').innerHTML=`<div class="card"><h2>Menu</h2><div class="actions"><input id="mn" placeholder="Nama menu"><input id="pr" type="number" min="1" placeholder="Harga"><input id="ct" placeholder="Kategori"><input id="st" type="number" min="0" step="1" value="20" placeholder="Stok awal" title="Stok awal (default 20)"><button class="btn primary" onclick="addMenu()">Tambah Menu</button></div><p class="muted">Stok awal otomatis 20 agar menu bisa langsung dijual. Ubah sesuai stok sebenarnya.</p></div><div class="card"><table><tr><th>Menu</th><th>Harga</th><th>Kategori</th><th>Stok</th><th></th></tr>${db.menu.map(x=>`<tr><td>${x.name}</td><td>${money(x.price)}</td><td>${x.cat}</td><td>${x.stock}</td><td><button class="btn danger" onclick="delMenu(${x.id})">Hapus</button></td></tr>`).join('')}</table></div>`}
 function addMenu(){let n=document.getElementById('mn').value.trim(),p=Number(document.getElementById('pr').value),c=document.getElementById('ct').value.trim(),rawStock=document.getElementById('st').value,stock=rawStock===''?20:Number(rawStock);if(!n||!Number.isFinite(p)||p<=0||!c)return alert('Lengkapi nama, harga, dan kategori dengan benar.');if(!Number.isInteger(stock)||stock<0)return alert('Stok awal harus berupa angka bulat 0 atau lebih.');db.menu.push({id:Date.now(),name:n,price:p,cat:c,stock});preferredCat=c;save();renderMenu();alert('Menu berhasil ditambahkan. Stok awal: '+stock+'. Saat membuka Kasir, kategori menu baru akan dipilih otomatis.')}
 function delMenu(id){if(confirm('Hapus menu ini?')){db.menu=db.menu.filter(x=>x.id!==id);save();renderMenu()}}
-function renderBackup(){document.getElementById('backup').innerHTML=`<div class="card"><h2>Backup & Restore</h2><p>Backup menyimpan menu, stok, transaksi, dan pengaturan dari perangkat ini.</p><div class="actions"><button class="btn primary" onclick="backup()">Download Backup JSON</button><label class="btn secondary">Restore JSON <input id="restore" type="file" accept=".json" hidden onchange="restore(this.files[0])"></label><button class="btn danger" onclick="resetAll()">Reset Semua Data</button></div><div class="notice" style="margin-top:12px"><b>Penting:</b> PWA ini tidak otomatis menyinkronkan data antara HP dan PC. Gunakan Backup JSON saat pindah perangkat.</div><hr><p class="muted">Status instalasi: <span id="installStatus"></span></p><button class="btn secondary" id="installBtn" onclick="installPwa()" style="display:none">📲 Install Kozi Kitchen</button></div>`;document.getElementById('installStatus').textContent=location.protocol==='https:'?'Siap dipasang jika browser mendukung.':'File lokal belum bisa dipasang sebagai PWA. Upload ke HTTPS gratis terlebih dahulu.'}
-function backup(){let blob=new Blob([JSON.stringify(db,null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='KoziKitchen_Backup_'+today()+'.json';a.click();URL.revokeObjectURL(a.href)}
-function restore(f){if(!f)return;let r=new FileReader();r.onload=()=>{try{let x=JSON.parse(r.result);if(!x.menu||!x.tx)throw 0;db=x;if(!Array.isArray(db.expenses))db.expenses=[];save();alert('Restore berhasil.');show('dashboard')}catch(e){alert('File backup tidak valid.')}};r.readAsText(f)}
+function renderBackup(){document.getElementById('backup').innerHTML=`<div class="card"><h2>Backup & Restore</h2><p>Backup menyimpan menu, stok, transaksi, catatan pengeluaran, dan pengaturan dari perangkat ini. File backup otomatis menggunakan ekstensi .json.</p><div class="actions"><button class="btn primary" onclick="backup()">Download Backup JSON</button><label class="btn secondary">Restore JSON <input id="restore" type="file" accept=".json,application/json,.txt,*/*" hidden onchange="restore(this.files[0])"></label><button class="btn danger" onclick="resetAll()">Reset Semua Data</button><button class="btn secondary" onclick="restoreSafetyCopy()">Pulihkan Salinan Pengaman</button></div><div class="notice" style="margin-top:12px"><b>Penting:</b> PWA ini tidak otomatis menyinkronkan data antara HP dan PC. Gunakan Backup JSON saat pindah perangkat.</div><hr><p class="muted">Status instalasi: <span id="installStatus"></span></p><button class="btn secondary" id="installBtn" onclick="installPwa()" style="display:none">📲 Install Kozi Kitchen</button></div>`;document.getElementById('installStatus').textContent=location.protocol==='https:'?'Siap dipasang jika browser mendukung.':'File lokal belum bisa dipasang sebagai PWA. Upload ke HTTPS gratis terlebih dahulu.'}
+function backup(){
+ try{
+  // Keep the existing JSON structure for compatibility with earlier Kozi backups.
+  const payload={...db,menu:db.menu,tx:db.tx,expenses:Array.isArray(db.expenses)?db.expenses:[],settings:db.settings||{}};
+  const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json;charset=utf-8'});
+  const url=URL.createObjectURL(blob),a=document.createElement('a');
+  const filename='KoziKitchen_Backup_'+today()+'.json';
+  a.href=url;a.download=filename;a.style.display='none';document.body.appendChild(a);a.click();a.remove();
+  // Do not revoke immediately; some mobile browsers need a short time to start the download.
+  setTimeout(()=>URL.revokeObjectURL(url),1500);
+  alert('Backup dibuat dengan nama '+filename+'. Pastikan file sudah tersimpan sebelum menutup aplikasi.');
+ }catch(e){alert('Backup belum berhasil dibuat. Pastikan ruang penyimpanan perangkat masih tersedia, lalu coba lagi.');}
+}
+function restore(f){
+ if(!f)return;
+ const reader=new FileReader();
+ reader.onload=()=>{
+  let incoming;
+  try{
+   incoming=JSON.parse(String(reader.result||''));
+   if(!incoming||typeof incoming!=='object'||!Array.isArray(incoming.menu)||!Array.isArray(incoming.tx))throw new Error('format');
+   if(incoming.expenses!==undefined&&!Array.isArray(incoming.expenses))throw new Error('expenses');
+   if(incoming.settings!==undefined&&(!incoming.settings||typeof incoming.settings!=='object'||Array.isArray(incoming.settings)))throw new Error('settings');
+   if(!incoming.menu.every(x=>x&&typeof x==='object')||!incoming.tx.every(x=>x&&typeof x==='object'))throw new Error('records');
+  }catch(e){alert('File tidak terbaca sebagai backup Kozi Kitchen yang valid. Data saat ini tidak diubah. Pilih file backup .json (atau file JSON lama yang tidak memiliki ekstensi).');return;}
+  if(!confirm('Restore akan mengganti data menu, stok, dan transaksi saat ini dengan isi file backup. Sebelum mengganti, aplikasi akan menyimpan salinan pengaman data saat ini. Lanjutkan?')){const input=document.getElementById('restore');if(input)input.value='';return;}
+  const previous=db;
+  try{
+   // Safety copy in this browser before applying the backup.
+   localStorage.setItem(KEY+'_pre_restore_backup',JSON.stringify({savedAt:new Date().toISOString(),data:previous}));
+   const restored={...incoming};
+   // Older backups may not contain expenses; keep current expenses rather than silently deleting them.
+   if(!Array.isArray(restored.expenses))restored.expenses=Array.isArray(previous.expenses)?previous.expenses:[];
+   if(!restored.settings||typeof restored.settings!=='object'||Array.isArray(restored.settings))restored.settings=previous.settings||{};
+   db=restored;save();
+   alert('Restore berhasil. Menu, stok, transaksi, dan catatan pengeluaran dari backup telah diproses. Salinan pengaman data sebelum restore disimpan di perangkat ini.');
+   show('dashboard');
+  }catch(e){
+   db=previous;
+   try{localStorage.setItem(KEY,JSON.stringify(previous));}catch(ignore){}
+   alert('Restore gagal disimpan karena penyimpanan perangkat bermasalah atau penuh. Data sebelum restore dipertahankan sebisa mungkin; jangan hapus data browser. Coba kosongkan ruang lalu ulangi.');
+  }finally{const input=document.getElementById('restore');if(input)input.value='';}
+ };
+ reader.onerror=()=>alert('File backup gagal dibaca. Coba pilih file sekali lagi.');
+ reader.readAsText(f);
+}
+function restoreSafetyCopy(){
+ const raw=localStorage.getItem(KEY+'_pre_restore_backup');
+ if(!raw)return alert('Belum ada salinan pengaman restore di perangkat ini.');
+ let snapshot;try{snapshot=JSON.parse(raw);if(!snapshot||!snapshot.data||!Array.isArray(snapshot.data.menu)||!Array.isArray(snapshot.data.tx))throw 0;}catch(e){return alert('Salinan pengaman tidak dapat dibaca.');}
+ if(!confirm('Pulihkan salinan pengaman yang dibuat sebelum restore pada '+(snapshot.savedAt||'waktu tidak diketahui')+'? Data saat ini akan diganti.'))return;
+ const current=db;
+ try{db=snapshot.data;save();alert('Salinan pengaman berhasil dipulihkan.');show('dashboard');}
+ catch(e){db=current;try{localStorage.setItem(KEY,JSON.stringify(current));}catch(ignore){}alert('Salinan pengaman gagal disimpan. Data saat ini dipertahankan sebisa mungkin.');}
+}
 function resetAll(){if(confirm('Hapus semua transaksi, stok, dan menu?')){localStorage.removeItem(KEY);location.reload()}}
 function csv(){let a=document.getElementById('from').value,b=document.getElementById('to').value,tx=db.tx.filter(x=>(x.status||'active')!=='cancelled'&&x.date.slice(0,10)>=a&&x.date.slice(0,10)<=b),rows=[['Tanggal','Pembayaran','Subtotal','Diskon','Total','Status','Item']];tx.forEach(x=>rows.push([x.date,x.payment,x.subtotal??x.items.reduce((s,i)=>s+i.price*i.qty,0),x.discount||0,x.total,'Aktif',x.items.map(i=>i.name+' x'+i.qty).join(' | ')]));let s=rows.map(r=>r.map(v=>`"${String(v).replaceAll('"','""')}"`).join(',')).join('\n'),blob=new Blob([s],{type:'text/csv;charset=utf-8'}),aEl=document.createElement('a');aEl.href=URL.createObjectURL(blob);aEl.download='KoziKitchen_Laporan_'+a+'_'+b+'.csv';aEl.click()}
 let deferredPrompt=null;window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;let b=document.getElementById('installBtn');if(b)b.style.display='inline-block'});
